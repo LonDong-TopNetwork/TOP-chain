@@ -50,6 +50,7 @@ private:
     uint32_t m_items_per_task{0};
     uint32_t m_req_sequence_id{0};
     uint32_t m_unit_bytes_uncommitted{0};
+    uint32_t m_req_nums{0};
 
 public:
     xtop_state_sync();

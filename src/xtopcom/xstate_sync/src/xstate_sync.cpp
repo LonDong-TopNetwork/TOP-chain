@@ -20,6 +20,7 @@ namespace state_sync {
 
 constexpr uint32_t ideal_batch_size = 100 * 1024;
 constexpr uint32_t fetch_num = 64;
+constexpr uint32_t max_req_num = 8;
 
 xtop_state_sync::xtop_state_sync() {
     XMETRICS_COUNTER_INCREMENT("statesync_syncers", 1);
@@ -250,7 +251,7 @@ void xtop_state_sync::assign_table_tasks(const sync_peers & peers) {
 }
 
 void xtop_state_sync::assign_trie_tasks(const sync_peers & peers) {
-    for (;;) {
+    for (auto i = 0; i < 2; ++i) {
         state_req req;
         std::vector<xhash256_t> nodes;
         std::vector<xbytes_t> units;
@@ -283,6 +284,10 @@ void xtop_state_sync::assign_trie_tasks(const sync_peers & peers) {
         req.id = m_req_sequence_id++;
         req.type = state_req_type::enum_state_req_trie;
         m_track_func(req);
+        m_req_nums++;
+        if (m_req_nums > max_req_num) {
+            return;
+        }
     }
 }
 
@@ -376,6 +381,7 @@ void xtop_state_sync::process_trie(state_req & req, std::error_code & ec) {
     if (req.type != state_req_type::enum_state_req_trie) {
         return;
     }
+    m_req_nums--;
     std::error_code ec_internal;
     for (auto const & blob : req.nodes_response) {
         xinfo("xtop_state_sync::process_trie node id: %u, blob: %s, {%s}", req.id, to_hex(blob).c_str(), symbol().c_str());
