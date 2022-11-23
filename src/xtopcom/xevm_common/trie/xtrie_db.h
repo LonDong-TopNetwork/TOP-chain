@@ -47,6 +47,8 @@ private:
 
     std::map<xhash256_t, xbytes_t> preimages_;  // Preimages of nodes from the secure trie
 
+    mutable std::mutex mutex;
+
 public:
     explicit xtop_trie_db(xkv_db_face_ptr_t diskdb) : diskdb_(std::move(diskdb)) {
     }
@@ -63,7 +65,7 @@ public:
     static std::shared_ptr<xtop_trie_db> NewDatabaseWithConfig(xkv_db_face_ptr_t diskdb, xtrie_db_config_ptr_t config);
 
 public:
-    xkv_db_face_ptr_t DiskDB() {
+    xkv_db_face_ptr_t DiskDB() const {
         return diskdb_;
     }
 
@@ -101,15 +103,15 @@ public:
     // concurrently with other mutators.
     void Commit(xhash256_t hash, AfterCommitCallback cb, std::error_code & ec);
 
-    void commit(xhash256_t hash, std::map<xbytes_t, xbytes_t> & data, AfterCommitCallback cb, std::error_code & ec);
-
     void prune(xhash256_t const & hash, std::error_code & ec);
 
     void commit_pruned(std::error_code & ec);
 
+    void clear_cleans();
+
 private:
     // commit is the private locked version of Commit.
-    // void commit(xhash256_t hash, AfterCommitCallback cb, std::error_code & ec);
+    void commit(xhash256_t hash, std::map<xbytes_t, xbytes_t> & data, AfterCommitCallback cb, std::error_code & ec);
 
     xbytes_t preimage_key(xhash256_t const & hash_key) const;
 };
