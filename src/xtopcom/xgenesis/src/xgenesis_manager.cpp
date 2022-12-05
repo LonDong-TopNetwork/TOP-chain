@@ -4,22 +4,24 @@
 
 #include "xgenesis/xgenesis_manager.h"
 
-#include "xdata/xblocktool.h"
+#include "xchain_upgrade/xchain_data_processor_v2.h"
 #include "xdata/xblockbuild.h"
+#include "xdata/xblocktool.h"
 #include "xdata/xgenesis_data.h"
 #include "xdata/xnative_contract_address.h"
 #include "xdata/xrootblock.h"
+#include "xdata/xsystem_contract/xdata_structures.h"
 #include "xdata/xtransaction_v1.h"
 #include "xdata/xunit_bstate.h"
-#include "xdata/xsystem_contract/xdata_structures.h"
 #include "xevm_common/common_data.h"
 #include "xevm_contract_runtime/xevm_contract_manager.h"
 #include "xgenesis/xerror/xerror.h"
+#include "xpbase/base/top_utils.h"
 #include "xstore/xaccount_context.h"
+#include "xvledger/xvblock.h"
 #include "xvm/manager/xcontract_manager.h"
 #include "xvm/xsystem_contracts/deploy/xcontract_deploy.h"
 #include "xvm/xvm_service.h"
-#include "xpbase/base/top_utils.h"
 
 namespace top {
 namespace genesis {
@@ -180,6 +182,8 @@ base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_contrac
 
 base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_evm_contract_account(base::xvaccount_t const & account, xenum_create_src_t src, std::error_code & ec) {
     xinfo("[xtop_genesis_manager::create_genesis_of_evm_contract_account] account %s", account.get_account().c_str());
+    auto const & init_bstate_str = chain_data::xchain_data_processor_v2_t::get_unit_state_str(common::xaccount_address_t{account.get_account()});
+    std::lock_guard<std::mutex> guard(m_lock);
     if (account.get_account() == evm_eth_bridge_contract_address.to_string() || account.get_account() == evm_bsc_client_contract_address.to_string() ||
         account.get_account() == evm_heco_client_contract_address.to_string()) {
         xobject_ptr_t<base::xvbstate_t> bstate =
@@ -190,10 +194,50 @@ base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_evm_con
         bstate->new_string_map_var(data::system_contract::XPROPERTY_ALL_HASHES, canvas.get());
         bstate->new_string_map_var(data::system_contract::XPROPERTY_EFFECTIVE_HASHES, canvas.get());
         bstate->new_string_var(data::system_contract::XPROPERTY_LAST_HASH, canvas.get());
-        auto bytes = (evm_common::h256()).asBytes();
-        bstate->load_string_var(data::system_contract::XPROPERTY_LAST_HASH)->reset({bytes.begin(), bytes.end()}, canvas.get());
         bstate->new_string_var(data::system_contract::XPROPERTY_RESET_FLAG, canvas.get());
-        bstate->load_string_var(data::system_contract::XPROPERTY_RESET_FLAG)->reset(top::to_string(0), canvas.get());
+        if (!init_bstate_str.empty()) {
+            xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+            assert(init_bstate != nullptr);
+            auto const & db_kv_163 = init_bstate->load_string_map_var(data::system_contract::XPROPERTY_HEADERS)->query();
+            auto property_163 = bstate->load_string_map_var(data::system_contract::XPROPERTY_HEADERS);
+            for (auto const & _p : db_kv_163) {
+                property_163->insert(_p.first, _p.second, canvas.get());
+            }
+            auto const & db_kv_164 = init_bstate->load_string_map_var(data::system_contract::XPROPERTY_HEADERS_SUMMARY)->query();
+            auto property_164 = bstate->load_string_map_var(data::system_contract::XPROPERTY_HEADERS_SUMMARY);
+            for (auto const & _p : db_kv_164) {
+                property_164->insert(_p.first, _p.second, canvas.get());
+            }
+            auto const & db_kv_162 = init_bstate->load_string_map_var(data::system_contract::XPROPERTY_ALL_HASHES)->query();
+            auto property_162 = bstate->load_string_map_var(data::system_contract::XPROPERTY_ALL_HASHES);
+            for (auto const & _p : db_kv_162) {
+                property_162->insert(_p.first, _p.second, canvas.get());
+            }
+            auto const & db_kv_161 = init_bstate->load_string_map_var(data::system_contract::XPROPERTY_EFFECTIVE_HASHES)->query();
+            auto property_161 = bstate->load_string_map_var(data::system_contract::XPROPERTY_EFFECTIVE_HASHES);
+            for (auto const & _p : db_kv_161) {
+                property_161->insert(_p.first, _p.second, canvas.get());
+            }
+            auto const & db_kv_160 = init_bstate->load_string_var(data::system_contract::XPROPERTY_LAST_HASH)->query();
+            auto property_160 = bstate->load_string_var(data::system_contract::XPROPERTY_LAST_HASH);
+            if (!db_kv_160.empty()) {
+                property_160->reset(db_kv_160, canvas.get());
+            } else {
+                auto bytes = (evm_common::h256()).asBytes();
+                bstate->load_string_var(data::system_contract::XPROPERTY_LAST_HASH)->reset({bytes.begin(), bytes.end()}, canvas.get());
+            }
+            auto const & db_kv_165 = init_bstate->load_string_var(data::system_contract::XPROPERTY_RESET_FLAG)->query();
+            auto property_165 = bstate->load_string_var(data::system_contract::XPROPERTY_RESET_FLAG);
+            if (!db_kv_165.empty()) {
+                property_165->reset(db_kv_165, canvas.get());
+            } else {
+                bstate->load_string_var(data::system_contract::XPROPERTY_RESET_FLAG)->reset(top::to_string(0), canvas.get());
+            }
+        } else {
+            auto bytes = (evm_common::h256()).asBytes();
+            bstate->load_string_var(data::system_contract::XPROPERTY_LAST_HASH)->reset({bytes.begin(), bytes.end()}, canvas.get());
+            bstate->load_string_var(data::system_contract::XPROPERTY_RESET_FLAG)->reset(top::to_string(0), canvas.get());
+        }
         // create
         base::xauto_ptr<base::xvblock_t> genesis_block = data::xblocktool_t::create_genesis_lightunit(bstate, canvas);
         xassert(genesis_block != nullptr);
@@ -211,7 +255,7 @@ base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_evm_con
                 m_blockstore->delete_block(account, existed_genesis_block.get());
             }
         }
-        xinfo("[xtop_genesis_manager::create_genesis_of_contract_account] account: %s, create genesis block success", account.get_account().c_str());
+        xinfo("[xtop_genesis_manager::create_genesis_of_evm_contract_account] account: %s, create genesis block success", account.get_account().c_str());
         return genesis_block;
     } else if (account.get_account() == evm_eth2_client_contract_address.to_string()) {
         xobject_ptr_t<base::xvbstate_t> bstate =
@@ -224,6 +268,45 @@ base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_evm_con
         bstate->new_string_var(data::system_contract::XPROPERTY_CURRENT_SYNC_COMMITTEE, canvas.get());
         bstate->new_string_var(data::system_contract::XPROPERTY_NEXT_SYNC_COMMITTEE, canvas.get());
         bstate->new_string_var(data::system_contract::XPROPERTY_RESET_FLAG, canvas.get());
+        if (!init_bstate_str.empty()) {
+            xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+            assert(init_bstate != nullptr);
+            auto const & db_kv_180 = init_bstate->load_string_map_var(data::system_contract::XPROPERTY_FINALIZED_EXECUTION_BLOCKS)->query();
+            auto property_180 = bstate->load_string_map_var(data::system_contract::XPROPERTY_FINALIZED_EXECUTION_BLOCKS);
+            for (auto const & _p : db_kv_180) {
+                property_180->insert(_p.first, _p.second, canvas.get());
+            }
+            auto const & db_kv_181 = init_bstate->load_string_map_var(data::system_contract::XPROPERTY_UNFINALIZED_HEADERS)->query();
+            auto property_181 = bstate->load_string_map_var(data::system_contract::XPROPERTY_UNFINALIZED_HEADERS);
+            for (auto const & _p : db_kv_181) {
+                property_181->insert(_p.first, _p.second, canvas.get());
+            }
+            auto const & db_kv_182 = init_bstate->load_string_var(data::system_contract::XPROPERTY_FINALIZED_BEACON_HEADER)->query();
+            auto property_182 = bstate->load_string_var(data::system_contract::XPROPERTY_FINALIZED_BEACON_HEADER);
+            if (!db_kv_182.empty()) {
+                property_182->reset(db_kv_182, canvas.get());
+            }
+            auto const & db_kv_183 = init_bstate->load_string_var(data::system_contract::XPROPERTY_FINALIZED_EXECUTION_HEADER)->query();
+            auto property_183 = bstate->load_string_var(data::system_contract::XPROPERTY_FINALIZED_EXECUTION_HEADER);
+            if (!db_kv_183.empty()) {
+                property_183->reset(db_kv_183, canvas.get());
+            }
+            auto const & db_kv_184 = init_bstate->load_string_var(data::system_contract::XPROPERTY_CURRENT_SYNC_COMMITTEE)->query();
+            auto property_184 = bstate->load_string_var(data::system_contract::XPROPERTY_CURRENT_SYNC_COMMITTEE);
+            if (!db_kv_184.empty()) {
+                property_184->reset(db_kv_184, canvas.get());
+            }
+            auto const & db_kv_185 = init_bstate->load_string_var(data::system_contract::XPROPERTY_NEXT_SYNC_COMMITTEE)->query();
+            auto property_185 = bstate->load_string_var(data::system_contract::XPROPERTY_NEXT_SYNC_COMMITTEE);
+            if (!db_kv_185.empty()) {
+                property_185->reset(db_kv_185, canvas.get());
+            }
+            auto const & db_kv_165 = init_bstate->load_string_var(data::system_contract::XPROPERTY_RESET_FLAG)->query();
+            auto property_165 = bstate->load_string_var(data::system_contract::XPROPERTY_RESET_FLAG);
+            if (!db_kv_165.empty()) {
+                property_165->reset(db_kv_165, canvas.get());
+            }
+        }
         // create
         base::xauto_ptr<base::xvblock_t> genesis_block = data::xblocktool_t::create_genesis_lightunit(bstate, canvas);
         xassert(genesis_block != nullptr);
@@ -241,8 +324,35 @@ base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_evm_con
                 m_blockstore->delete_block(account, existed_genesis_block.get());
             }
         }
-        xinfo("[xtop_genesis_manager::create_genesis_of_contract_account] account: %s, create genesis block success", account.get_account().c_str());
+        xinfo("[xtop_genesis_manager::create_genesis_of_evm_contract_account] account: %s, create genesis block success", account.get_account().c_str());
         return genesis_block;
+    } else {
+        if (init_bstate_str.empty()) {
+            base::xauto_ptr<base::xvblock_t> genesis_block = data::xblocktool_t::create_genesis_empty_table(account.get_account());
+            xassert(genesis_block != nullptr);
+            genesis_block->reset_modified_count();
+            xinfo("[xtop_genesis_manager::create_genesis_of_evm_contract_account] account: %s, create empty genesis block success", account.get_account().c_str());
+            return genesis_block;
+        } else {
+            xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+            xassert(init_bstate != nullptr);
+            base::xauto_ptr<base::xvblock_t> genesis_block = data::xblocktool_t::create_genesis_lightunit(init_bstate, init_bstate->take_snapshot());
+            xassert(genesis_block != nullptr);
+            if (src == xenum_create_src_t::init && m_blockstore->exist_genesis_block(account)) {
+                auto const existed_genesis_block = m_blockstore->load_block_object(account, (uint64_t)0, (uint64_t)0, false);
+                if (existed_genesis_block->get_block_hash() == genesis_block->get_block_hash()) {
+                    xinfo("[xtop_genesis_manager::create_genesis_of_evm_contract_account] account %s, genesis block already exists", account.get_account().c_str());
+                    return nullptr;
+                } else {
+                    // just delete it here and store new root block after
+                    xwarn("[xtop_genesis_manager::create_genesis_of_evm_contract_account] account: %s genesis block exist but hash not match, replace it, %s, %s",
+                        account.get_account().c_str(),
+                        base::xstring_utl::to_hex(existed_genesis_block->get_block_hash()).c_str(),
+                        base::xstring_utl::to_hex(genesis_block->get_block_hash()).c_str());
+                    m_blockstore->delete_block(account, existed_genesis_block.get());
+                }
+            }
+        }
     }
     return nullptr;
 }
@@ -277,6 +387,25 @@ base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_datause
     base::xauto_ptr<base::xvblock_t> genesis_block = data::xblocktool_t::create_genesis_lightunit(account.get_account(), data);
     xassert(genesis_block != nullptr);
     xinfo("[xtop_genesis_manager::create_genesis_of_datauser_account] account: %s, create genesis block success", account.get_account().c_str());
+    return genesis_block;
+}
+
+base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_datauser_account_v2(common::xaccount_address_t const & account,
+                                                                                             xobject_ptr_t<base::xvbstate_t> const & bstate,
+                                                                                             xenum_create_src_t src,
+                                                                                             std::error_code & ec) {
+    xinfo("[xtop_genesis_manager::create_genesis_of_datauser_account_v2] account: %s", account.to_string().c_str());
+    // lock
+    std::lock_guard<std::mutex> guard(m_lock);
+    // check
+    if (src == xenum_create_src_t::init && m_blockstore->exist_genesis_block(account.vaccount())) {
+        xinfo("[xtop_genesis_manager::create_genesis_of_datauser_account_v2] account: %s, genesis block already exists", account.to_string().c_str());
+        return nullptr;
+    }
+    // create
+    base::xauto_ptr<base::xvblock_t> genesis_block = data::xblocktool_t::create_genesis_lightunit(bstate, bstate->take_snapshot());
+    xassert(genesis_block != nullptr);
+    xinfo("[xtop_genesis_manager::create_genesis_of_datauser_account_v2] account: %s, create genesis block success", account.to_string().c_str());
     return genesis_block;
 }
 
@@ -355,7 +484,7 @@ void xtop_genesis_manager::init_genesis_block(std::error_code & ec) {
         }
     }
     // step3: user accounts with data(reset)
-    if (false == chain_data::xtop_chain_data_processor::check_state()) {
+    if (false == chain_data::xtop_chain_data_processor_v2::check_state()) {
         for (auto const & pair : m_user_accounts_data) {
             auto vblock = create_genesis_of_datauser_account(base::xvaccount_t{pair.first.to_string()}, pair.second, src, ec);
             CHECK_EC_RETURN(ec);
@@ -364,7 +493,21 @@ void xtop_genesis_manager::init_genesis_block(std::error_code & ec) {
                 CHECK_EC_RETURN(ec);
             }
         }
-        if (false == chain_data::xtop_chain_data_processor::set_state()) {
+        auto const & states_str = chain_data::xchain_data_processor_v2_t::get_unit_states_str();
+        for (auto const & str : states_str) {
+            xobject_ptr_t<base::xvbstate_t> bstate{base::xvblock_t::create_state_object(str)};
+            xassert(bstate != nullptr);
+            auto const & account = common::xaccount_address_t{bstate->get_account()};
+            if (is_t2(account) || m_user_accounts_data.count(account)) {
+                continue;
+            }
+            auto vblock = create_genesis_of_datauser_account_v2(account, bstate, src, ec);
+            if (vblock != nullptr) {
+                store_block(account.vaccount(), vblock.get(), ec);
+                CHECK_EC_RETURN(ec);
+            }
+        }
+        if (false == chain_data::xtop_chain_data_processor_v2::set_state()) {
             xerror("[xtop_genesis_manager::init_genesis_block] chain_data_processor set state failed");
             SET_EC_RETURN(ec, error::xenum_errc::genesis_set_data_state_failed);
         }

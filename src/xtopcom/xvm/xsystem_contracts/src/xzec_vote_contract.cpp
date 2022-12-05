@@ -7,6 +7,7 @@
 #include "xbase/xutl.h"
 #include "xbasic/xutility.h"
 #include "xchain_upgrade/xchain_data_processor.h"
+#include "xchain_upgrade/xchain_data_processor_v2.h"
 #include "xdata/xgenesis_data.h"
 #include "xdata/xnative_contract_address.h"
 #include "xdata/xsystem_contract/xdata_structures.h"
@@ -34,85 +35,17 @@ xzec_vote_contract::xzec_vote_contract(common::xnetwork_id_t const & network_id)
 }
 
 void xzec_vote_contract::setup() {
-    // save shard total tickets
-    // vote related
     MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_TICKETS_KEY);
-    const uint32_t old_tables_count = 256;
-    for (auto table = 0; table < enum_vledger_const::enum_vbucket_has_tables_count; table++) {
-        std::string table_address{std::string{sys_contract_sharding_vote_addr} + "@" + std::to_string(table)};
-        std::map<std::string, uint64_t> adv_get_votes_detail;
-        for (auto i = 1; i <= data::system_contract::XPROPERTY_SPLITED_NUM; i++) {
-            std::string property;
-            property = property + data::system_contract::XPORPERTY_CONTRACT_VOTES_KEY_BASE + "-" + std::to_string(i);
-            {
-                std::map<std::string, std::map<std::string, uint64_t>> votes_detail;
-                for (uint32_t j = 0; j < old_tables_count; j++) {
-                    auto table_addr = std::string{sys_contract_sharding_vote_addr} + "@" + base::xstring_utl::tostring(j);
-                    std::vector<std::pair<std::string, std::string>> db_kv_112;
-                    chain_data::xchain_data_processor_t::get_stake_map_property(common::xlegacy_account_address_t{table_addr}, property, db_kv_112);
-                    for (auto const & _p : db_kv_112) {
-                        base::xvaccount_t vaccount{_p.first};
-                        auto account_table_id = vaccount.get_ledger_subaddr();
-                        if (static_cast<uint16_t>(account_table_id) != static_cast<uint16_t>(table)) {
-                            continue;
-                        }
-                        std::map<std::string, uint64_t> votes;
-                        base::xstream_t stream(base::xcontext_t::instance(), (uint8_t *)_p.second.c_str(), (uint32_t)_p.second.size());
-                        stream >> votes;
-                        for (auto const & vote : votes) {
-                            if (votes_detail[_p.first].count(vote.first)) {
-                                votes_detail[_p.first][vote.first] += vote.second;
-                            } else {
-                                votes_detail[_p.first][vote.first] = vote.second;
-                            }
-                        }
-                    }
-                }
-                for (auto const & vote_detail : votes_detail) {
-                    for (auto const & adv_get_votes : vote_detail.second) {
-                        if (adv_get_votes_detail.count(adv_get_votes.first)) {
-                            adv_get_votes_detail[adv_get_votes.first] += adv_get_votes.second;
-                        } else {
-                            adv_get_votes_detail[adv_get_votes.first] = adv_get_votes.second;
-                        }
-                    }
-                }
-            }
-        }
-        {
-            if(adv_get_votes_detail.empty()) {
-                continue;
-            }
-            std::map<std::string, std::string> adv_get_votes_str_detail;
-            for (auto const & adv_get_votes : adv_get_votes_detail) {
-                adv_get_votes_str_detail.insert(std::make_pair(adv_get_votes.first, base::xstring_utl::tostring(adv_get_votes.second)));
-            }
-            xstream_t stream(xcontext_t::instance());
-            stream << adv_get_votes_str_detail;
-            std::string adv_get_votes_str{std::string((const char*)stream.data(), stream.size())};
-            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_TICKETS_KEY, table_address, adv_get_votes_str);
+
+    auto const & init_bstate_str = chain_data::xchain_data_processor_v2_t::get_unit_state_str(SELF_ADDRESS());
+    if (!init_bstate_str.empty()) {
+        xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+        assert(init_bstate != nullptr);
+        auto const & db_kv_112 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_TICKETS_KEY)->query();
+        for (auto const & _p : db_kv_112) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_TICKETS_KEY, _p.first, _p.second);
         }
     }
-    
-    /*{
-        // test
-        std::map<std::string, std::string> contract_auditor_votes;
-        auto table_address = "T20000MVfDLsBKVcy1wMp4CoEHWxUeBEAVBL9ZEa@0";
-
-        uint64_t votes = 1000000;
-        for (auto i = 0; i < 700; i++) {
-            std::stringstream ss;
-            ss << std::setw(40) << std::setfill('0') << i;
-            auto node_account = ss.str();
-
-            contract_auditor_votes[node_account] = base::xstring_utl::tostring(votes);
-        }
-
-        xstream_t stream(xcontext_t::instance());
-        stream << contract_auditor_votes;
-        std::string contract_adv_votes_str = std::string((const char*)stream.data(), stream.size());
-        MAP_SET(XPORPERTY_CONTRACT_TICKETS_KEY, table_address, contract_adv_votes_str);
-    }*/
 
     auto const& source_address = SOURCE_ADDRESS();
     MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_VOTE_REPORT_TIME_KEY);

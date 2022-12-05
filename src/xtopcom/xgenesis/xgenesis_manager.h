@@ -79,6 +79,15 @@ private:
                                                                         xenum_create_src_t src,
                                                                         std::error_code & ec);
 
+    /// @brief Create genesis block of user account who has specific data.
+    /// @param bstate State of accounts.
+    /// @param ec Log the error code.
+    /// @return Block created.
+    base::xauto_ptr<base::xvblock_t> create_genesis_of_datauser_account_v2(common::xaccount_address_t const & account,
+                                                                           xobject_ptr_t<base::xvbstate_t> const & bstate,
+                                                                           xenum_create_src_t src,
+                                                                           std::error_code & ec);
+
     /// @brief Create genesis block of none data account.
     /// @param account Common account.
     /// @param ec Log the error code.

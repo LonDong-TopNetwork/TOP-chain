@@ -52,20 +52,20 @@ std::vector<std::pair<std::string, std::string>> table_stake_map_string_string_p
 xdb_reset_t::xdb_reset_t(observer_ptr<base::xvblockstore_t> const & blockstore) : m_blockstore(blockstore) {
 }
 
-void xdb_reset_t::generate_reset_check_file(std::vector<std::string> const & sys_contract_accounts_vec, std::vector<std::string> const & accounts) {
+void xdb_reset_t::generate_property_reset_check_file(std::vector<std::string> const & accounts) {
     json property_json;
     get_contract_stake_property_map_string_string(property_json);
     get_contract_stake_property_string(property_json);
     get_contract_table_stake_property_map_string_string(property_json);
     get_contract_table_stake_property_string(property_json);
-    get_unit_set_property(sys_contract_accounts_vec, accounts, property_json);
+    get_unit_set_property(accounts, property_json);
     std::ofstream out_json("all_property_check.json");
     out_json << std::setw(4) << property_json["contract_account_parse"];
     out_json << std::setw(4) << property_json["user_account_parse"];
     std::cout << "===> all_property_check.json generated success!" << std::endl;
 }
 
-void xdb_reset_t::verify(json const & contract, json const & user) {
+void xdb_reset_t::verify_property(json const & contract, json const & user) {
     std::vector<std::pair<uint32_t, std::string>> balance_property = {
         std::make_pair(0, data::XPROPERTY_BALANCE_AVAILABLE),
         std::make_pair(1, data::XPROPERTY_BALANCE_BURN),
@@ -181,24 +181,8 @@ void xdb_reset_t::verify(json const & contract, json const & user) {
     std::cout << "calc total vote, @107: " << total_vote_107 << ", @112: " << total_vote_121 << std::endl;
 }
 
-void xdb_reset_t::get_unit_set_property(std::vector<std::string> const & sys_contract_accounts_vec, std::vector<std::string> const & accounts_vec, json & accounts_json) {
+void xdb_reset_t::get_unit_set_property(std::vector<std::string> const & accounts_vec, json & accounts_json) {
     std::set<std::string> accounts_set(accounts_vec.begin(), accounts_vec.end());
-    // 1. get all new sys contract address
-    std::set<std::string> sys_contract_accounts_set;
-    for (auto const & account : sys_contract_accounts_vec) {
-        sys_contract_accounts_set.insert(account);
-    }
-    // 2. delete all old sys contract contract
-    for (auto const & account : accounts_set) {
-        auto account_address = common::xaccount_address_t{account};
-        if (!is_account_address(account_address)) {
-            accounts_set.erase(account);
-        }
-    }
-    // 3. add new sys contract address
-    for (auto const & account : sys_contract_accounts_vec) {
-        accounts_set.insert(account);
-    }
     for (auto const & account : accounts_set) {
         base::xvaccount_t _vaddr(account);
         auto _block = m_blockstore->load_block_object(_vaddr, 0, 0, false);
@@ -642,6 +626,52 @@ void xdb_reset_t::get_contract_table_stake_property_map_string_string(json & sta
             stake_json["contract_account_parse"][addr + "@" + std::to_string(index)][property_key] = j;
         }
     }
+}
+
+void xdb_reset_t::generate_state_reset_file(std::vector<std::string> const & accounts) {
+    std::ofstream out_json("all_state.json");
+    out_json << std::setw(4) << get_units_state(accounts);
+    std::cout << "===> all_state.json generated success!" << std::endl;
+}
+
+json xdb_reset_t::get_units_state(std::vector<std::string> const & accounts) {
+    json j;
+    for (auto const acc : accounts) {
+        auto b = m_blockstore->get_latest_committed_block(acc);
+        if (b == nullptr) {
+            std::cerr << acc << " get_latest_committed_block null!" << std::endl;
+            continue;
+        }
+        base::xauto_ptr<base::xvbstate_t> s = base::xvchain_t::instance().get_xstatestore()->get_blkstate_store()->get_block_state(b.get());
+        if (s == nullptr) {
+            std::cerr << acc << " get_block_state null!" << std::endl;
+            continue;
+        }
+        clear_useless_property(acc, s.get());
+        std::string str;
+        s->serialize_to_string(str);
+        auto enc = base::xstring_utl::base64_encode((uint8_t *)(str.data()), str.size());
+        j[acc] = enc;
+    }
+    return j;
+}
+
+void xdb_reset_t::clear_useless_property(std::string acc, base::xvbstate_t * bstate) {
+    auto canvas = make_object_ptr<base::xvcanvas_t>();
+    // XPROPERTY_BALANCE_LOCK
+    auto lock_balance = bstate->load_token_var(data::XPROPERTY_BALANCE_LOCK)->get_balance();
+    bstate->load_token_var(data::XPROPERTY_BALANCE_LOCK)->withdraw(lock_balance, canvas.get());
+    bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->deposit(lock_balance, canvas.get());
+    // XPROPERTY_LOCK_TGAS
+    bstate->load_uint64_var(data::XPROPERTY_LOCK_TGAS)->set(0, canvas.get());
+    // XPROPERTY_USED_TGAS_KEY
+    bstate->load_string_var(data::XPROPERTY_USED_TGAS_KEY)->reset(std::to_string(0), canvas.get());
+    // XPROPERTY_LAST_TX_HOUR_KEY
+    bstate->load_string_var(data::XPROPERTY_LAST_TX_HOUR_KEY)->reset(std::to_string(0), canvas.get());
+    // XPROPERTY_TX_INFO
+    bstate->load_string_map_var(data::XPROPERTY_TX_INFO)->clear(canvas.get());
+    // XPROPERTY_LOCK_TOKEN_KEY
+    bstate->load_string_map_var(data::XPROPERTY_LOCK_TOKEN_KEY)->clear(canvas.get());
 }
 
 NS_END2

@@ -6,6 +6,7 @@
 
 #include "xchain_fork/xutility.h"
 #include "xchain_upgrade/xchain_data_processor.h"
+#include "xchain_upgrade/xchain_data_processor_v2.h"
 #include "xcommon/xip.h"
 #include "xdata/xfull_tableblock.h"
 #include "xdata/xgenesis_data.h"
@@ -25,14 +26,19 @@ NS_BEG3(top, xvm, xcontract)
 xzec_slash_info_contract::xzec_slash_info_contract(common::xnetwork_id_t const & network_id) : xbase_t{network_id} {}
 
 void xzec_slash_info_contract::setup() {
-    // initialize map key
     MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_UNQUALIFIED_NODE_KEY);
-    std::vector<std::pair<std::string, std::string>> db_kv_131;
-    chain_data::xchain_data_processor_t::get_stake_map_property(
-        common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPORPERTY_CONTRACT_UNQUALIFIED_NODE_KEY, db_kv_131);
-    process_reset_data(db_kv_131);
-    MAP_CREATE(data::system_contract::XPROPERTY_CONTRACT_TABLEBLOCK_NUM_KEY);
 
+    auto const & init_bstate_str = chain_data::xchain_data_processor_v2_t::get_unit_state_str(SELF_ADDRESS());
+    if (!init_bstate_str.empty()) {
+        xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+        assert(init_bstate != nullptr);
+        auto const & db_kv_131 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_UNQUALIFIED_NODE_KEY)->query();
+        for (auto const & _p : db_kv_131) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_UNQUALIFIED_NODE_KEY, _p.first, _p.second);
+        }
+    }
+
+    MAP_CREATE(data::system_contract::XPROPERTY_CONTRACT_TABLEBLOCK_NUM_KEY);
     MAP_CREATE(data::system_contract::XPROPERTY_CONTRACT_EXTENDED_FUNCTION_KEY);
     MAP_SET(data::system_contract::XPROPERTY_CONTRACT_EXTENDED_FUNCTION_KEY, SLASH_DELETE_PROPERTY, "false");
     MAP_SET(data::system_contract::XPROPERTY_CONTRACT_EXTENDED_FUNCTION_KEY, LAST_SLASH_TIME, "0");

@@ -7,6 +7,7 @@
 #include "xbase/xutl.h"
 #include "xbasic/xutility.h"
 #include "xchain_upgrade/xchain_data_processor.h"
+#include "xchain_upgrade/xchain_data_processor_v2.h"
 #include "xcommon/xrole_type.h"
 #include "xdata/xgenesis_data.h"
 #include "xdata/xnative_contract_address.h"
@@ -32,56 +33,28 @@ void xtable_vote_contract::setup() {
         return;
     }
 
-    // vote related
-    std::map<std::string, uint64_t> adv_get_votes_detail;
     for (auto i = 1; i <= data::system_contract::XPROPERTY_SPLITED_NUM; i++) {
-        std::string property;
-        property = property + data::system_contract::XPORPERTY_CONTRACT_VOTES_KEY_BASE + "-" + std::to_string(i);
+        std::string property{data::system_contract::XPORPERTY_CONTRACT_VOTES_KEY_BASE};
+        property += "-" + std::to_string(i);
         MAP_CREATE(property);
-        {
-            std::map<std::string, std::map<std::string, uint64_t>> votes_detail;
-            for (auto j = 0; j < old_tables_count; j++) {
-                auto table_addr = std::string{sys_contract_sharding_vote_addr} + "@" + base::xstring_utl::tostring(j);
-                std::vector<std::pair<std::string, std::string>> db_kv_112;
-                chain_data::xchain_data_processor_t::get_stake_map_property(common::xlegacy_account_address_t{table_addr}, property, db_kv_112);
-                for (auto const & _p : db_kv_112) {
-                    base::xvaccount_t vaccount{_p.first};
-                    auto account_table_id = vaccount.get_ledger_subaddr();
-                    if (static_cast<uint16_t>(account_table_id) != static_cast<uint16_t>(table_id)) {
-                        continue;
-                    }
-                    std::map<std::string, uint64_t> votes;
-                    base::xstream_t stream(base::xcontext_t::instance(), (uint8_t *)_p.second.c_str(), (uint32_t)_p.second.size());
-                    stream >> votes;
-                    for (auto const & vote : votes) {
-                        if (votes_detail[_p.first].count(vote.first)) {
-                            votes_detail[_p.first][vote.first] += vote.second;
-                        } else {
-                            votes_detail[_p.first][vote.first] = vote.second;
-                        }
-                    }
-                }
-            }
-            for (auto const & vote_detail : votes_detail) {
-                for (auto const & adv_get_votes : vote_detail.second) {
-                    if (adv_get_votes_detail.count(adv_get_votes.first)) {
-                        adv_get_votes_detail[adv_get_votes.first] += adv_get_votes.second;
-                    } else {
-                        adv_get_votes_detail[adv_get_votes.first] = adv_get_votes.second;
-                    }
-                }
-                xstream_t stream(xcontext_t::instance());
-                stream << vote_detail.second;
-                std::string vote_info_str = std::string((char *)stream.data(), stream.size());
-                MAP_SET(property, vote_detail.first, vote_info_str);
+    }
+    MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_POLLABLE_KEY);
+
+    auto const & init_bstate_str = chain_data::xchain_data_processor_v2_t::get_unit_state_str(SELF_ADDRESS());
+    if (!init_bstate_str.empty()) {
+        xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+        assert(init_bstate != nullptr);
+        for (auto i = 1; i <= data::system_contract::XPROPERTY_SPLITED_NUM; i++) {
+            std::string property;
+            property = property + data::system_contract::XPORPERTY_CONTRACT_VOTES_KEY_BASE + "-" + std::to_string(i);
+            auto const & db_kv_112 = init_bstate->load_string_map_var(property)->query();
+            for (auto const & _p : db_kv_112) {
+                MAP_SET(property, _p.first, _p.second);
             }
         }
-    }
-
-    MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_POLLABLE_KEY);
-    {
-        for (auto const & adv_get_votes : adv_get_votes_detail) {
-            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_POLLABLE_KEY, adv_get_votes.first, base::xstring_utl::tostring(adv_get_votes.second));
+        auto const & db_kv_107 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_POLLABLE_KEY)->query();
+        for (auto const & _p : db_kv_107) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_POLLABLE_KEY, _p.first, _p.second);
         }
     }
 

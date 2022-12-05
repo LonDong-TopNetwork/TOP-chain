@@ -119,6 +119,7 @@ public:
                         std::ios_base::openmode open_mode,
                         std::error_code & ec) const;
 
+    xobject_ptr_t<base::xvblockstore_t> m_blockstore;
 private:
     struct tx_ext_t {
         base::xtable_shortid_t  sendtableid;
@@ -400,7 +401,6 @@ private:
     std::unique_ptr<xbase_timer_driver_t> m_timer_driver;
     xobject_ptr_t<mbus::xmessage_bus_face_t> m_bus;
     xobject_ptr_t<store::xstore_face_t> m_store;
-    xobject_ptr_t<base::xvblockstore_t> m_blockstore;
     xobject_ptr_t<base::xvtxstore_t> m_txstore;
     xobject_ptr_t<base::xvnodesrv_t> m_nodesvr_ptr;
     std::shared_ptr<rpc::xrpc_handle_face_t> m_getblock;

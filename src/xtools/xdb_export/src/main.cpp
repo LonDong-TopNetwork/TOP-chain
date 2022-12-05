@@ -43,6 +43,7 @@ void usage() {
     std::cout << "- ./xdb_export <config_json/db_path> <function_name>" << std::endl;
     std::cout << "    - <function_name>:" << std::endl;
     std::cout << "        - db_migrate_v2_to_v3 new_path" << std::endl;
+    std::cout << "        - db_reset" << std::endl;
     std::cout << "        - check_fast_sync <account>" << std::endl;
     std::cout << "        - check_state_data <account>" << std::endl;
     std::cout << "        - check_off_data" << std::endl;
@@ -196,7 +197,10 @@ int main(int argc, char ** argv) {
     }
 
     xdb_export_tools_t tools{db_path};
-    if (function_name == "check_fast_sync" || function_name == "check_state_data") {
+    if (function_name == "db_reset") {
+        db_reset::xdb_reset_t reset(make_observer(tools.m_blockstore.get()));
+        reset.generate_state_reset_file(tools.get_db_unit_accounts());
+    } else if (function_name == "check_fast_sync" || function_name == "check_state_data") {
         bool check_block = (function_name == "check_fast_sync");
         if (argc == 3) {
             auto const table_account_vec = xdb_export_tools_t::get_table_accounts();

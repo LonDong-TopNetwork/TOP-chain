@@ -11,6 +11,7 @@
 #include "xbasic/xutility.h"
 #include "xchain_fork/xutility.h"
 #include "xchain_upgrade/xchain_data_processor.h"
+#include "xchain_upgrade/xchain_data_processor_v2.h"
 #include "xcommon/xrole_type.h"
 #include "xdata/xgenesis_data.h"
 #include "xdata/xnative_contract_address.h"
@@ -43,122 +44,33 @@ void xrec_registration_contract::setup() {
     STRING_CREATE(data::system_contract::XPORPERTY_CONTRACT_GENESIS_STAGE_KEY);
     MAP_CREATE(data::system_contract::XPROPERTY_CONTRACT_SLASH_INFO_KEY);
 
-    std::vector<std::pair<std::string, std::string>> db_kv_101;
-    chain_data::xchain_data_processor_t::get_stake_map_property(common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPORPERTY_CONTRACT_REG_KEY, db_kv_101);
-    for (auto const & _p : db_kv_101) {
-        auto const & node_info_serialized = _p.second;
-
-        base::xstream_t stream{ base::xcontext_t::instance(), reinterpret_cast<uint8_t *>(const_cast<char *>(node_info_serialized.data())), static_cast<uint32_t>(node_info_serialized.size()) };
-        data::system_contract::xreg_node_info node_info;
-        node_info.serialize_from(stream);
-
-        auto const old_role = static_cast<common::xlegacy_miner_type_t>(node_info.miner_type());
-        switch (old_role) {
-        case common::xlegacy_miner_type_t::advance:
-            node_info.miner_type(common::xminer_type_t::advance);
-            break;
-
-        case common::xlegacy_miner_type_t::consensus:
-            node_info.miner_type(common::xminer_type_t::validator);
-            break;
-
-        case common::xlegacy_miner_type_t::archive:
-            node_info.miner_type(common::xminer_type_t::archive);
-            break;
-
-        case common::xlegacy_miner_type_t::edge:
-            node_info.miner_type(common::xminer_type_t::edge);
-            break;
-
-        default:
-            break;
+    auto const & init_bstate_str = chain_data::xchain_data_processor_v2_t::get_unit_state_str(SELF_ADDRESS());
+    if (!init_bstate_str.empty()) {
+        xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+        assert(init_bstate != nullptr);
+        auto const & db_kv_101 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_REG_KEY)->query();
+        for (auto const & _p : db_kv_101) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_REG_KEY, _p.first, _p.second);
         }
-        stream.reset();
-        node_info.serialize_to(stream);
-
-        MAP_SET(data::system_contract::XPORPERTY_CONTRACT_REG_KEY, _p.first, {reinterpret_cast<char *>(stream.data()), static_cast<size_t>(stream.size())});
-    }
-
-    std::vector<std::pair<std::string, std::string>> db_kv_128;
-    chain_data::xchain_data_processor_t::get_stake_map_property(common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPORPERTY_CONTRACT_REFUND_KEY, db_kv_128);
-    for (auto const & _p : db_kv_128) {
-        MAP_SET(data::system_contract::XPORPERTY_CONTRACT_REFUND_KEY, _p.first, _p.second);
-    }
-
-    std::vector<std::pair<std::string, std::string>> db_kv_132;
-    chain_data::xchain_data_processor_t::get_stake_map_property(
-        common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPROPERTY_CONTRACT_SLASH_INFO_KEY, db_kv_132);
-    for (auto const & _p : db_kv_132) {
-        MAP_SET(data::system_contract::XPROPERTY_CONTRACT_SLASH_INFO_KEY, _p.first, _p.second);
-    }
-
-    std::string db_kv_129;
-    chain_data::xchain_data_processor_t::get_stake_string_property(
-        common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPORPERTY_CONTRACT_GENESIS_STAGE_KEY, db_kv_129);
-    if (!db_kv_129.empty()) {
-        STRING_SET(data::system_contract::XPORPERTY_CONTRACT_GENESIS_STAGE_KEY, db_kv_129);
-    }
-
-    const uint32_t old_tables_count = 256;
-    for (auto table = 0; table < enum_vledger_const::enum_vbucket_has_tables_count; table++) {
-        std::string table_address{std::string{sys_contract_sharding_vote_addr} + "@" + std::to_string(table)};
-        std::map<std::string, uint64_t> adv_get_votes_detail;
-        for (auto i = 1; i <= data::system_contract::XPROPERTY_SPLITED_NUM; i++) {
-            std::string property;
-            property = property + data::system_contract::XPORPERTY_CONTRACT_VOTES_KEY_BASE + "-" + std::to_string(i);
-            {
-                std::map<std::string, std::map<std::string, uint64_t>> votes_detail;
-                for (uint32_t j = 0; j < old_tables_count; j++) {
-                    auto table_addr = std::string{sys_contract_sharding_vote_addr} + "@" + base::xstring_utl::tostring(j);
-                    std::vector<std::pair<std::string, std::string>> db_kv_112;
-                    chain_data::xchain_data_processor_t::get_stake_map_property(common::xlegacy_account_address_t{table_addr}, property, db_kv_112);
-                    for (auto const & _p : db_kv_112) {
-                        base::xvaccount_t vaccount{_p.first};
-                        auto account_table_id = vaccount.get_ledger_subaddr();
-                        if (static_cast<uint16_t>(account_table_id) != static_cast<uint16_t>(table)) {
-                            continue;
-                        }
-                        std::map<std::string, uint64_t> votes;
-                        base::xstream_t stream(base::xcontext_t::instance(), (uint8_t *)_p.second.c_str(), (uint32_t)_p.second.size());
-                        stream >> votes;
-                        for (auto const & vote : votes) {
-                            if (votes_detail[_p.first].count(vote.first)) {
-                                votes_detail[_p.first][vote.first] += vote.second;
-                            } else {
-                                votes_detail[_p.first][vote.first] = vote.second;
-                            }
-                        }
-                    }
-                }
-                for (auto const & vote_detail : votes_detail) {
-                    for (auto const & adv_get_votes : vote_detail.second) {
-                        if (adv_get_votes_detail.count(adv_get_votes.first)) {
-                            adv_get_votes_detail[adv_get_votes.first] += adv_get_votes.second;
-                        } else {
-                            adv_get_votes_detail[adv_get_votes.first] = adv_get_votes.second;
-                        }
-                    }
-                }
-            }
+        auto const & db_kv_112 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_TICKETS_KEY)->query();
+        for (auto const & _p : db_kv_112) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_TICKETS_KEY, _p.first, _p.second);
         }
-        {
-            if(adv_get_votes_detail.empty()) {
-                continue;
-            }
-            std::map<std::string, std::string> adv_get_votes_str_detail;
-            for (auto const & adv_get_votes : adv_get_votes_detail) {
-                adv_get_votes_str_detail.insert(std::make_pair(adv_get_votes.first, base::xstring_utl::tostring(adv_get_votes.second)));
-            }
-            xstream_t stream(xcontext_t::instance());
-            stream << adv_get_votes_str_detail;
-            std::string adv_get_votes_str{std::string((const char*)stream.data(), stream.size())};
-            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_TICKETS_KEY, table_address, adv_get_votes_str);
+        auto const & db_kv_128 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_REFUND_KEY)->query();
+        for (auto const & _p : db_kv_128) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_REFUND_KEY, _p.first, _p.second);
         }
+        auto const & db_kv_129 = init_bstate->load_string_var(data::system_contract::XPORPERTY_CONTRACT_GENESIS_STAGE_KEY)->query();
+        if (!db_kv_129.empty()) {
+            STRING_SET(data::system_contract::XPORPERTY_CONTRACT_GENESIS_STAGE_KEY, db_kv_129);
+        }
+        auto const & db_kv_132 = init_bstate->load_string_map_var(data::system_contract::XPROPERTY_CONTRACT_SLASH_INFO_KEY)->query();
+        for (auto const & _p : db_kv_132) {
+            MAP_SET(data::system_contract::XPROPERTY_CONTRACT_SLASH_INFO_KEY, _p.first, _p.second);
+        }
+        auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
+        TOP_TOKEN_INCREASE(balance);
     }
-
-    top::chain_data::data_processor_t data;
-    top::chain_data::xtop_chain_data_processor::get_contract_data(common::xlegacy_account_address_t{SELF_ADDRESS()}, data);
-    TOP_TOKEN_INCREASE(data.top_balance);
 
     auto const & source_address = SOURCE_ADDRESS();
     MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_VOTE_REPORT_TIME_KEY);

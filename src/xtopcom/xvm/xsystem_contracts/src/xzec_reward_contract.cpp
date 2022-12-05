@@ -9,6 +9,7 @@
 #include "xbasic/xutility.h"
 #include "xchain_fork/xutility.h"
 #include "xchain_upgrade/xchain_data_processor.h"
+#include "xchain_upgrade/xchain_data_processor_v2.h"
 #include "xdata/xgenesis_data.h"
 #include "xdata/xnative_contract_address.h"
 #include "xdata/xsystem_contract/xdata_structures.h"
@@ -42,53 +43,50 @@ NS_BEG2(top, xstake)
 xzec_reward_contract::xzec_reward_contract(common::xnetwork_id_t const & network_id) : xbase_t{network_id} {}
 
 void xzec_reward_contract::setup() {
-    MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_TASK_KEY);  // save dispatch tasks
-    std::vector<std::pair<std::string, std::string>> db_kv_111;
-    chain_data::xchain_data_processor_t::get_stake_map_property(common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPORPERTY_CONTRACT_TASK_KEY, db_kv_111);
-    for (auto const & _p : db_kv_111) {
-        MAP_SET(data::system_contract::XPORPERTY_CONTRACT_TASK_KEY, _p.first, _p.second);
-    }
-
-    MAP_CREATE(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE);  // save issuance
-    std::vector<std::pair<std::string, std::string>> db_kv_141;
-    chain_data::xchain_data_processor_t::get_stake_map_property(
-        common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE, db_kv_141);
-    for (auto const & _p : db_kv_141) {
-        MAP_SET(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE, _p.first, _p.second);
-    }
-
+    MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_TASK_KEY);
+    MAP_CREATE(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE);
+    MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_WORKLOAD_KEY);
+    MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_VALIDATOR_WORKLOAD_KEY);
     STRING_CREATE(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE_YEARLY);
-    std::string db_kv_142;
-    chain_data::xchain_data_processor_t::get_stake_string_property(
-        common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE_YEARLY, db_kv_142);
-    if (!db_kv_142.empty()) {
-        STRING_SET(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE_YEARLY, db_kv_142);
+
+    auto const & init_bstate_str = chain_data::xchain_data_processor_v2_t::get_unit_state_str(SELF_ADDRESS());
+    if (!init_bstate_str.empty()) {
+        xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+        assert(init_bstate != nullptr);
+        auto const & db_kv_111 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_TASK_KEY)->query();
+        for (auto const & _p : db_kv_111) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_TASK_KEY, _p.first, _p.second);
+        }
+        auto const & db_kv_141 = init_bstate->load_string_map_var(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE)->query();
+        for (auto const & _p : db_kv_141) {
+            MAP_SET(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE, _p.first, _p.second);
+        }
+        auto const & db_kv_103 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_WORKLOAD_KEY)->query();
+        for (auto const & _p : db_kv_103) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_WORKLOAD_KEY, _p.first, _p.second);
+        }
+        auto const & db_kv_125 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_VALIDATOR_WORKLOAD_KEY)->query();
+        for (auto const & _p : db_kv_125) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_VALIDATOR_WORKLOAD_KEY, _p.first, _p.second);
+        }
+        auto const & db_kv_142 = init_bstate->load_string_var(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE_YEARLY)->query();
+        if (!db_kv_142.empty()) {
+            STRING_SET(data::system_contract::XPROPERTY_CONTRACT_ACCUMULATED_ISSUANCE_YEARLY, db_kv_142);
+        } else {
+            data::system_contract::xaccumulated_reward_record record;
+            update_accumulated_record(record);
+        }
     } else {
         data::system_contract::xaccumulated_reward_record record;
         update_accumulated_record(record);
     }
 
     STRING_CREATE(data::system_contract::XPROPERTY_LAST_READ_REC_REG_CONTRACT_BLOCK_HEIGHT);
-    std::string last_read_rec_reg_contract_height{"0"};
-    STRING_SET(data::system_contract::XPROPERTY_LAST_READ_REC_REG_CONTRACT_BLOCK_HEIGHT, last_read_rec_reg_contract_height);
+    STRING_SET(data::system_contract::XPROPERTY_LAST_READ_REC_REG_CONTRACT_BLOCK_HEIGHT, std::string{"0"});
     STRING_CREATE(data::system_contract::XPROPERTY_LAST_READ_REC_REG_CONTRACT_LOGIC_TIME);
-    std::string last_read_rec_reg_contract_logic_time{"0"};
-    STRING_SET(data::system_contract::XPROPERTY_LAST_READ_REC_REG_CONTRACT_LOGIC_TIME, last_read_rec_reg_contract_logic_time);
-
+    STRING_SET(data::system_contract::XPROPERTY_LAST_READ_REC_REG_CONTRACT_LOGIC_TIME, std::string{"0"});
     STRING_CREATE(data::system_contract::XPROPERTY_REWARD_DETAIL);
-    MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_WORKLOAD_KEY);
-    std::vector<std::pair<std::string, std::string>> db_kv_103;
-    chain_data::xchain_data_processor_t::get_stake_map_property(common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPORPERTY_CONTRACT_WORKLOAD_KEY, db_kv_103);
-    for (auto const & _p : db_kv_103) {
-        MAP_SET(data::system_contract::XPORPERTY_CONTRACT_WORKLOAD_KEY, _p.first, _p.second);
-    }
-    MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_VALIDATOR_WORKLOAD_KEY);
-    std::vector<std::pair<std::string, std::string>> db_kv_125;
-    chain_data::xchain_data_processor_t::get_stake_map_property(
-        common::xlegacy_account_address_t{SELF_ADDRESS()}, data::system_contract::XPORPERTY_CONTRACT_VALIDATOR_WORKLOAD_KEY, db_kv_125);
-    for (auto const & _p : db_kv_125) {
-        MAP_SET(data::system_contract::XPORPERTY_CONTRACT_VALIDATOR_WORKLOAD_KEY, _p.first, _p.second);
-    }
+    STRING_SET(data::system_contract::XPROPERTY_REWARD_DETAIL, data::system_contract::xissue_detail_v2().to_string());
 }
 
 void xzec_reward_contract::on_timer(const common::xlogic_time_t onchain_timer_round) {

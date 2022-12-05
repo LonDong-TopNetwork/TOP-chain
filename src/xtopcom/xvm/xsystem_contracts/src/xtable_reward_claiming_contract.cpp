@@ -5,6 +5,7 @@
 #include "xvm/xsystem_contracts/xreward/xtable_reward_claiming_contract.h"
 
 #include "xchain_upgrade/xchain_data_processor.h"
+#include "xchain_upgrade/xchain_data_processor_v2.h"
 #include "xdata/xdatautil.h"
 #include "xdata/xnative_contract_address.h"
 #include "xmetrics/xmetrics.h"
@@ -21,65 +22,32 @@ void xtop_table_reward_claiming_contract::setup() {
         return;
     }
     xdbg("[xtop_table_reward_claiming_contract::setup] table id: %d", table_id);
-    
-    uint64_t acc_token = 0; 
-    uint32_t acc_token_decimals = 0;
+
     for (auto i = 1; i <= data::system_contract::XPROPERTY_SPLITED_NUM; i++) {
         std::string property{data::system_contract::XPORPERTY_CONTRACT_VOTER_DIVIDEND_REWARD_KEY_BASE};
         property += "-" + std::to_string(i);
         MAP_CREATE(property);
-        {
-            for (auto j = 0; j < old_tables_count; j++) {
-                auto table_addr = std::string{sys_contract_sharding_reward_claiming_addr} + "@" + base::xstring_utl::tostring(j);
-                std::vector<std::pair<std::string, std::string>> db_kv_121;
-                chain_data::xchain_data_processor_t::get_stake_map_property(common::xlegacy_account_address_t{table_addr}, property, db_kv_121);
-                for (auto const & _p : db_kv_121) {
-                    base::xvaccount_t vaccount{_p.first};
-                    auto account_table_id = vaccount.get_ledger_subaddr();
-                    if (static_cast<uint16_t>(account_table_id) != static_cast<uint16_t>(table_id)) {
-                        continue;
-                    }
-                    data::system_contract::xreward_record record;
-                    auto detail = _p.second;
-                    base::xstream_t stream{base::xcontext_t::instance(), (uint8_t *)detail.data(), static_cast<uint32_t>(detail.size())};
-                    record.serialize_from(stream);
-                    MAP_SET(property, _p.first, _p.second);
-                    acc_token += static_cast<uint64_t>(record.unclaimed / data::system_contract::REWARD_PRECISION);
-                    acc_token_decimals += static_cast<uint32_t>(record.unclaimed % data::system_contract::REWARD_PRECISION);
-                }
-            }
-        }
     }
-    
     MAP_CREATE(data::system_contract::XPORPERTY_CONTRACT_NODE_REWARD_KEY);
-    {
-        for (auto i = 0; i < old_tables_count; i++) {
-            auto table_addr = std::string{sys_contract_sharding_reward_claiming_addr} + "@" + base::xstring_utl::tostring(i);
-            std::vector<std::pair<std::string, std::string>> db_kv_124;
-            chain_data::xchain_data_processor_t::get_stake_map_property(
-                common::xlegacy_account_address_t{table_addr}, data::system_contract::XPORPERTY_CONTRACT_NODE_REWARD_KEY, db_kv_124);
-            for (auto const & _p : db_kv_124) {
-                base::xvaccount_t vaccount{_p.first};
-                auto account_table_id = vaccount.get_ledger_subaddr();
-                if (static_cast<uint16_t>(account_table_id) != static_cast<uint16_t>(table_id)) {
-                    continue;
-                }
-                MAP_SET(data::system_contract::XPORPERTY_CONTRACT_NODE_REWARD_KEY, _p.first, _p.second);
-                data::system_contract::xreward_node_record record;
-                auto detail = _p.second;
-                base::xstream_t stream{base::xcontext_t::instance(), (uint8_t *)detail.data(), static_cast<uint32_t>(detail.size())};
-                record.serialize_from(stream);
-                acc_token += static_cast<uint64_t>(record.m_unclaimed / data::system_contract::REWARD_PRECISION);
-                acc_token_decimals += static_cast<uint32_t>(record.m_unclaimed % data::system_contract::REWARD_PRECISION);
+    auto const & init_bstate_str = chain_data::xchain_data_processor_v2_t::get_unit_state_str(SELF_ADDRESS());
+    if (!init_bstate_str.empty()) {
+        xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+        assert(init_bstate != nullptr);
+        for (auto i = 1; i <= data::system_contract::XPROPERTY_SPLITED_NUM; i++) {
+            std::string property{data::system_contract::XPORPERTY_CONTRACT_VOTER_DIVIDEND_REWARD_KEY_BASE};
+            property += "-" + std::to_string(i);
+            auto const & db_kv_121 = init_bstate->load_string_map_var(property)->query();
+            for (auto const & _p : db_kv_121) {
+                MAP_SET(property, _p.first, _p.second);
             }
         }
+        auto const & db_kv_124 = init_bstate->load_string_map_var(data::system_contract::XPORPERTY_CONTRACT_NODE_REWARD_KEY)->query();
+        for (auto const & _p : db_kv_124) {
+            MAP_SET(data::system_contract::XPORPERTY_CONTRACT_NODE_REWARD_KEY, _p.first, _p.second);
+        }
+        auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
+        TOP_TOKEN_INCREASE(balance);
     }
-
-    acc_token += (acc_token_decimals / data::system_contract::REWARD_PRECISION);
-    if (acc_token_decimals % data::system_contract::REWARD_PRECISION != 0) {
-        acc_token += 1;
-    }
-    TOP_TOKEN_INCREASE(acc_token);
 }
 
 xcontract::xcontract_base * xtop_table_reward_claiming_contract::clone() {

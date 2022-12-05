@@ -3,6 +3,7 @@
 #include "xbase/xbase.h"
 #include "xbase/xutl.h"
 #include "xchain_upgrade/xchain_data_processor.h"
+#include "xchain_upgrade/xchain_data_processor_v2.h"
 #include "xconfig/xconfig_register.h"
 #include "xconfig/xconfig_update_parameter_action.h"
 #include "xdata/xblock.h"
@@ -39,9 +40,13 @@ void xrec_proposal_contract::setup() {
     MAP_CREATE(VOTE_MAP_ID);
     STRING_CREATE(CURRENT_VOTED_PROPOSAL);
 
-    top::chain_data::data_processor_t data;
-    top::chain_data::xtop_chain_data_processor::get_contract_data(common::xlegacy_account_address_t{SELF_ADDRESS()}, data);
-    TOP_TOKEN_INCREASE(data.top_balance);
+    auto const & init_bstate_str = chain_data::xchain_data_processor_v2_t::get_unit_state_str(SELF_ADDRESS());
+    if (!init_bstate_str.empty()) {
+        xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
+        assert(init_bstate != nullptr);
+        auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
+        TOP_TOKEN_INCREASE(balance);
+    }
 }
 
 bool xrec_proposal_contract::get_proposal_info(const std::string & proposal_id, proposal_info & proposal) {
