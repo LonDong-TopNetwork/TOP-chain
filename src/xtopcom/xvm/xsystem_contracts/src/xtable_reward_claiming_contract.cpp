@@ -45,8 +45,10 @@ void xtop_table_reward_claiming_contract::setup() {
         for (auto const & _p : db_kv_124) {
             MAP_SET(data::system_contract::XPORPERTY_CONTRACT_NODE_REWARD_KEY, _p.first, _p.second);
         }
-        auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
-        TOP_TOKEN_INCREASE(balance);
+        if (init_bstate->find_property(data::XPROPERTY_BALANCE_AVAILABLE)) {
+            auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
+            TOP_TOKEN_INCREASE(balance);
+        }
     }
 }
 

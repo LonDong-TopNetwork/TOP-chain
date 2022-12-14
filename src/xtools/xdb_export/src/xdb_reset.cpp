@@ -659,19 +659,31 @@ json xdb_reset_t::get_units_state(std::vector<std::string> const & accounts) {
 void xdb_reset_t::clear_useless_property(std::string acc, base::xvbstate_t * bstate) {
     auto canvas = make_object_ptr<base::xvcanvas_t>();
     // XPROPERTY_BALANCE_LOCK
-    auto lock_balance = bstate->load_token_var(data::XPROPERTY_BALANCE_LOCK)->get_balance();
-    bstate->load_token_var(data::XPROPERTY_BALANCE_LOCK)->withdraw(lock_balance, canvas.get());
-    bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->deposit(lock_balance, canvas.get());
+    if (bstate->find_property(data::XPROPERTY_BALANCE_LOCK)) {
+        auto lock_balance = bstate->load_token_var(data::XPROPERTY_BALANCE_LOCK)->get_balance();
+        bstate->load_token_var(data::XPROPERTY_BALANCE_LOCK)->withdraw(lock_balance, canvas.get());
+        bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->deposit(lock_balance, canvas.get());
+    }
     // XPROPERTY_LOCK_TGAS
-    bstate->load_uint64_var(data::XPROPERTY_LOCK_TGAS)->set(0, canvas.get());
+    if (bstate->find_property(data::XPROPERTY_LOCK_TGAS)) {
+        bstate->load_uint64_var(data::XPROPERTY_LOCK_TGAS)->set(0, canvas.get());
+    }
     // XPROPERTY_USED_TGAS_KEY
-    bstate->load_string_var(data::XPROPERTY_USED_TGAS_KEY)->reset(std::to_string(0), canvas.get());
+    if (bstate->find_property(data::XPROPERTY_USED_TGAS_KEY)) {
+        bstate->load_string_var(data::XPROPERTY_USED_TGAS_KEY)->reset(std::to_string(0), canvas.get());
+    }
     // XPROPERTY_LAST_TX_HOUR_KEY
-    bstate->load_string_var(data::XPROPERTY_LAST_TX_HOUR_KEY)->reset(std::to_string(0), canvas.get());
+    if (bstate->find_property(data::XPROPERTY_LAST_TX_HOUR_KEY)) {
+        bstate->load_string_var(data::XPROPERTY_LAST_TX_HOUR_KEY)->reset(std::to_string(0), canvas.get());
+    }
     // XPROPERTY_TX_INFO
-    bstate->load_string_map_var(data::XPROPERTY_TX_INFO)->clear(canvas.get());
+    if (bstate->find_property(data::XPROPERTY_TX_INFO)) {
+        bstate->load_string_map_var(data::XPROPERTY_TX_INFO)->clear(canvas.get());
+    }
     // XPROPERTY_LOCK_TOKEN_KEY
-    bstate->load_string_map_var(data::XPROPERTY_LOCK_TOKEN_KEY)->clear(canvas.get());
+    if (bstate->find_property(data::XPROPERTY_LOCK_TOKEN_KEY)) {
+        bstate->load_string_map_var(data::XPROPERTY_LOCK_TOKEN_KEY)->clear(canvas.get());
+    }
 }
 
 NS_END2

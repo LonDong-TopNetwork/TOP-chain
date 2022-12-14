@@ -68,8 +68,10 @@ void xrec_registration_contract::setup() {
         for (auto const & _p : db_kv_132) {
             MAP_SET(data::system_contract::XPROPERTY_CONTRACT_SLASH_INFO_KEY, _p.first, _p.second);
         }
-        auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
-        TOP_TOKEN_INCREASE(balance);
+        if (init_bstate->find_property(data::XPROPERTY_BALANCE_AVAILABLE)) {
+            auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
+            TOP_TOKEN_INCREASE(balance);
+        }
     }
 
     auto const & source_address = SOURCE_ADDRESS();

@@ -44,8 +44,10 @@ void xrec_proposal_contract::setup() {
     if (!init_bstate_str.empty()) {
         xobject_ptr_t<base::xvbstate_t> init_bstate{base::xvblock_t::create_state_object(init_bstate_str)};
         assert(init_bstate != nullptr);
-        auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
-        TOP_TOKEN_INCREASE(balance);
+        if (init_bstate->find_property(data::XPROPERTY_BALANCE_AVAILABLE)) {
+            auto const balance = init_bstate->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
+            TOP_TOKEN_INCREASE(balance);
+        }
     }
 }
 

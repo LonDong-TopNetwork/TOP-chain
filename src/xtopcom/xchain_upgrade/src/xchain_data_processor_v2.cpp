@@ -47,17 +47,14 @@ std::string xtop_chain_data_processor_v2::get_unit_state_str(common::xaccount_ad
     if (it == unit_states_json.end()) {
         return {};
     }
-    auto str = it->get<std::string>();
-    auto const & dec = base::xstring_utl::base64_encode((uint8_t *)(str.data()), str.size());
-    return dec;
+    return base::xstring_utl::base64_decode(it->get<std::string>());
 }
 
 std::vector<std::string> xtop_chain_data_processor_v2::get_unit_states_str() {
-    std::vector<std::string> strs(unit_states_json.size());
+    std::vector<std::string> strs;
+    strs.reserve(unit_states_json.size());
     for (auto it = unit_states_json.begin(); it != unit_states_json.end(); ++it) {
-        auto str = it->get<std::string>();
-        auto const & dec = base::xstring_utl::base64_encode((uint8_t *)(str.data()), str.size());
-        strs.emplace_back(dec);
+        strs.emplace_back(base::xstring_utl::base64_decode(it->get<std::string>()));
     }
     return strs;
 }
