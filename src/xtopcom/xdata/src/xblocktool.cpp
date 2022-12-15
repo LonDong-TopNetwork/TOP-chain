@@ -95,10 +95,129 @@ base::xvblock_t * xblocktool_t::create_genesis_lightunit(const xobject_ptr_t<bas
     return _new_block.get();  // TODO(jimmy) xblocktool_t return auto ptr
 }
 
+base::xvblock_t * xblocktool_t::create_genesis_lightunit(const xobject_ptr_t<base::xvbstate_t> & old_state) {
+    auto account = old_state->get_account();
+    auto tx = xtx_factory::create_genesis_tx_with_balance(account, 0);
+
+    xobject_ptr_t<base::xvbstate_t> bstate = make_object_ptr<base::xvbstate_t>(account, (uint64_t)0, (uint64_t)0, std::string(), std::string(), (uint64_t)0, (uint32_t)0, (uint16_t)0);
+    xobject_ptr_t<base::xvcanvas_t> canvas = make_object_ptr<base::xvcanvas_t>();
+
+    if (old_state->find_property(data::XPROPERTY_BALANCE_AVAILABLE)) {
+        auto val = old_state->load_token_var(data::XPROPERTY_BALANCE_AVAILABLE)->get_balance();
+        auto prop = bstate->new_token_var(data::XPROPERTY_BALANCE_AVAILABLE, canvas.get());
+        prop->deposit(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_TEP1_BALANCE_KEY)) {
+        auto val = old_state->load_string_map_var(data::XPROPERTY_TEP1_BALANCE_KEY)->query();
+        auto prop = bstate->new_string_map_var(data::XPROPERTY_TEP1_BALANCE_KEY, canvas.get());
+        for (auto const & v : val) {
+            prop->insert(v.first, v.second, canvas.get());
+        }
+    }
+    if (old_state->find_property(data::XPROPERTY_PRECOMPILED_ERC20_ALLOWANCE_KEY)) {
+        auto val = old_state->load_string_map_var(data::XPROPERTY_PRECOMPILED_ERC20_ALLOWANCE_KEY)->query();
+        auto prop = bstate->new_string_map_var(data::XPROPERTY_PRECOMPILED_ERC20_ALLOWANCE_KEY, canvas.get());
+        for (auto const & v : val) {
+            prop->insert(v.first, v.second, canvas.get());
+        }
+    }
+    if (old_state->find_property(data::XPROPERTY_PRECOMPILED_ERC20_OWNER_KEY)) {
+        auto val = old_state->load_string_map_var(data::XPROPERTY_PRECOMPILED_ERC20_OWNER_KEY)->query();
+        auto prop = bstate->new_string_map_var(data::XPROPERTY_PRECOMPILED_ERC20_OWNER_KEY, canvas.get());
+        for (auto const & v : val) {
+            prop->insert(v.first, v.second, canvas.get());
+        }
+    }
+    if (old_state->find_property(data::XPROPERTY_PRECOMPILED_ERC20_CONTROLLER_KEY)) {
+        auto val = old_state->load_string_map_var(data::XPROPERTY_PRECOMPILED_ERC20_CONTROLLER_KEY)->query();
+        auto prop = bstate->new_string_map_var(data::XPROPERTY_PRECOMPILED_ERC20_CONTROLLER_KEY, canvas.get());
+        for (auto const & v : val) {
+            prop->insert(v.first, v.second, canvas.get());
+        }
+    }
+    if (old_state->find_property(data::XPROPERTY_BALANCE_BURN)) {
+        auto val = old_state->load_token_var(data::XPROPERTY_BALANCE_BURN)->get_balance();
+        auto prop = bstate->new_token_var(data::XPROPERTY_BALANCE_BURN, canvas.get());
+        prop->deposit(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_BALANCE_LOCK)) {
+        auto val = old_state->load_token_var(data::XPROPERTY_BALANCE_LOCK)->get_balance();
+        assert(val == 0);
+        auto prop = bstate->new_token_var(data::XPROPERTY_BALANCE_LOCK, canvas.get());
+        prop->deposit(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_BALANCE_PLEDGE_TGAS)) {
+        auto val = old_state->load_token_var(data::XPROPERTY_BALANCE_PLEDGE_TGAS)->get_balance();
+        auto prop = bstate->new_token_var(data::XPROPERTY_BALANCE_PLEDGE_TGAS, canvas.get());
+        prop->deposit(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_BALANCE_PLEDGE_VOTE)) {
+        auto val = old_state->load_token_var(data::XPROPERTY_BALANCE_PLEDGE_VOTE)->get_balance();
+        auto prop = bstate->new_token_var(data::XPROPERTY_BALANCE_PLEDGE_VOTE, canvas.get());
+        prop->deposit(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_PLEDGE_VOTE_KEY)) {
+        auto val = old_state->load_string_map_var(data::XPROPERTY_PLEDGE_VOTE_KEY)->query();
+        auto prop = bstate->new_string_map_var(data::XPROPERTY_PLEDGE_VOTE_KEY, canvas.get());
+        for (auto const & v : val) {
+            prop->insert(v.first, v.second, canvas.get());
+        }
+    }
+    if (old_state->find_property(data::XPROPERTY_EXPIRE_VOTE_TOKEN_KEY)) {
+        auto val = old_state->load_string_var(data::XPROPERTY_EXPIRE_VOTE_TOKEN_KEY)->query();
+        auto prop = bstate->new_string_var(data::XPROPERTY_EXPIRE_VOTE_TOKEN_KEY, canvas.get());
+        prop->reset(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_UNVOTE_NUM)) {
+        auto val = old_state->load_uint64_var(data::XPROPERTY_UNVOTE_NUM)->get();
+        auto prop = bstate->new_uint64_var(data::XPROPERTY_UNVOTE_NUM, canvas.get());
+        prop->set(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_ACCOUNT_CREATE_TIME)) {
+        auto val = old_state->load_uint64_var(data::XPROPERTY_ACCOUNT_CREATE_TIME)->get();
+        auto prop = bstate->new_uint64_var(data::XPROPERTY_ACCOUNT_CREATE_TIME, canvas.get());
+        prop->set(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_EVM_CODE)) {
+        auto val = old_state->load_string_var(data::XPROPERTY_EVM_CODE)->query();
+        auto prop = bstate->new_string_var(data::XPROPERTY_EVM_CODE, canvas.get());
+        prop->reset(val, canvas.get());
+    }
+    if (old_state->find_property(data::XPROPERTY_EVM_STORAGE)) {
+        auto val = old_state->load_string_map_var(data::XPROPERTY_EVM_STORAGE)->query();
+        auto prop = bstate->new_string_map_var(data::XPROPERTY_EVM_STORAGE, canvas.get());
+        for (auto const & v : val) {
+            prop->insert(v.first, v.second, canvas.get());
+        }
+    }
+    if (old_state->find_property(data::XPROPERTY_EVM_GENERATION)) {
+        auto val = old_state->load_string_var(data::XPROPERTY_EVM_GENERATION)->query();
+        auto prop = bstate->new_string_var(data::XPROPERTY_EVM_GENERATION, canvas.get());
+        prop->reset(val, canvas.get());
+    }
+
+    std::string property_binlog;
+    std::string fullstate_bin;
+    canvas->encode(property_binlog);
+    bstate->take_snapshot(fullstate_bin);
+    // TODO(jimmy) block builder class
+    xinfo("xlightunit_builder_t::build_block account=%s,height=0,binlog_size=%zu",
+        account.c_str(), property_binlog.size());
+
+    xcons_transaction_ptr_t cons_tx = make_object_ptr<xcons_transaction_t>(tx.get());
+    xlightunit_block_para_t bodypara;
+    bodypara.set_one_input_tx(cons_tx);
+    bodypara.set_binlog(property_binlog);
+    bodypara.set_fullstate_bin(fullstate_bin);
+    xlightunit_build_t bbuild(account, bodypara);
+    base::xauto_ptr<base::xvblock_t> _new_block = bbuild.build_new_block();
+    _new_block->add_ref();
+    return _new_block.get();  // TODO(jimmy) xblocktool_t return auto ptr
+}
+
 base::xvblock_t * xblocktool_t::create_genesis_lightunit(std::string const & account, chain_data::data_processor_t const & data) {
     xtransaction_ptr_t tx = xtx_factory::create_genesis_tx_with_balance(account, data.top_balance);
 
-    xtransaction_result_t result;
     xobject_ptr_t<base::xvbstate_t> bstate = make_object_ptr<base::xvbstate_t>(account, (uint64_t)0, (uint64_t)0, std::string(), std::string(), (uint64_t)0, (uint32_t)0, (uint16_t)0);
     xobject_ptr_t<base::xvcanvas_t> canvas = make_object_ptr<base::xvcanvas_t>();
     auto propobj = bstate->new_uint64_var(XPROPERTY_ACCOUNT_CREATE_TIME, canvas.get());

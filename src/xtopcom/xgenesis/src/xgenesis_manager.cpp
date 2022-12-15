@@ -403,7 +403,7 @@ base::xauto_ptr<base::xvblock_t> xtop_genesis_manager::create_genesis_of_datause
         return nullptr;
     }
     // create
-    base::xauto_ptr<base::xvblock_t> genesis_block = data::xblocktool_t::create_genesis_lightunit(bstate, bstate->take_snapshot());
+    base::xauto_ptr<base::xvblock_t> genesis_block = data::xblocktool_t::create_genesis_lightunit(bstate);
     xassert(genesis_block != nullptr);
     xinfo("[xtop_genesis_manager::create_genesis_of_datauser_account_v2] account: %s, create genesis block success", account.to_string().c_str());
     return genesis_block;
@@ -485,20 +485,12 @@ void xtop_genesis_manager::init_genesis_block(std::error_code & ec) {
     }
     // step3: user accounts with data(reset)
     if (false == chain_data::xtop_chain_data_processor_v2::check_state()) {
-        for (auto const & pair : m_user_accounts_data) {
-            auto vblock = create_genesis_of_datauser_account(base::xvaccount_t{pair.first.to_string()}, pair.second, src, ec);
-            CHECK_EC_RETURN(ec);
-            if (vblock != nullptr) {
-                store_block(base::xvaccount_t{pair.first.to_string()}, vblock.get(), ec);
-                CHECK_EC_RETURN(ec);
-            }
-        }
         auto const & states_str = chain_data::xchain_data_processor_v2_t::get_unit_states_str();
         for (auto const & str : states_str) {
             xobject_ptr_t<base::xvbstate_t> bstate{base::xvblock_t::create_state_object(str)};
             xassert(bstate != nullptr);
             auto const & account = common::xaccount_address_t{bstate->get_account()};
-            if (is_t2(account) || m_user_accounts_data.count(account)) {
+            if (is_t2(account)) {
                 continue;
             }
             auto vblock = create_genesis_of_datauser_account_v2(account, bstate, src, ec);
